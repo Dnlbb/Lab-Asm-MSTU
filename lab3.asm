@@ -1,97 +1,129 @@
-assume CS:code,DS:data
+assume cs: code, ds: data
 
 data segment
-    string1 db 100, 99 dup (0)   ; Первая строка
-    string2 db 100, 99 dup (0)   ; Вторая строка
-    msg_equal db 'Strings are equal.', 0Dh, 0Ah, '$'
-    msg_first_greater db 'First string is greater.', 0Dh, 0Ah, '$'
-    msg_second_greater db 'Second string is greater.', 0Dh, 0Ah, '$'
+    first db 255, 254 dup (0)
+    second db 255, 254 dup (0)
+    n dw 10
+    bigger_s db "  first$"
+    smaller_s db "  second$"
+    equal_s db "  equal$"   
 data ends
 
 code segment
-start:
-    mov ax, data
-    mov ds, ax
 
-    ; Чтение первой строки
-    mov dx, offset string1
-    mov ah, 0Ah
-    int 21h
-
-    ; Чтение второй строки
-    mov dx, offset string2
-    mov ah, 0Ah
-    int 21h
-
-    ; Вызов функции strncmp (far call)
-    push word ptr 50             ; Максимальная длина сравнения
-    push offset string2 + 2      ; Указатель на вторую строку (пропускаем длину)
-    push offset string1 + 2      ; Указатель на первую строку (пропускаем длину)
-    call far ptr strncmp         ; Вызов strncmp как far procedure                
-
-    ; Сравнение результата
-    cmp ax, 0                   
-    je strings_are_equal
-
-    ; Если не равны, проверим, больше ли первая строка второй
-    jg first_is_greater
-
-    ; Если первая строка меньше, выводим соответствующее сообщение
-    jmp second_is_greater
-
-first_is_greater:
-    mov dx, offset msg_first_greater
-    mov ah, 09h
-    int 21h
-    jmp finish
-
-second_is_greater:
-    mov dx, offset msg_second_greater
-    mov ah, 09h
-    int 21h
-    jmp finish
-
-strings_are_equal:
-    mov dx, offset msg_equal
-    mov ah, 09h
-    int 21h
-
-finish:
-    mov ah, 4Ch
-    int 21h
-
-strncmp proc far
+input proc
     push bp
     mov bp, sp
-    mov si, [bp+4]       
-    mov di, [bp+6]       
-    mov cx, [bp+8]       
-
-    xor ax, ax           
-
-compare_loop:
-    cmp cx, 0 
-    je done              
-
-    mov al, [si]         
-    mov bl, [di]         
-    cmp al, bl           
-    jne compare_not_equal 
-
-    inc si               
-    inc di               
-    dec cx               
-    jmp compare_loop     
-
-compare_not_equal:
-    mov ah, 0            
-    sub al, bl           
-    jmp done
-
-done:
+    
+    mov dx, [bp+4]
+    xor ax, ax
+    mov ah, 0Ah
+    int 21h
+    
+    mov dx, [bp+4]
+    inc dx
+    mov si, dx
+    mov cx, [si]
+    xor ch, ch
+    add si, cx
+    mov byte ptr [si+1], '$'
     pop bp
-    retf                 
+    ret
+input endp
+
+
+print proc
+    push bp
+    mov bp, sp
+    
+    mov dx, [bp+4]
+    add dx, 2
+    xor ax, ax
+    mov ah, 09h
+    int 21h
+    pop bp
+    ret
+print endp
+
+
+endl proc
+    mov ah, 02h
+    mov dl, 0Ah
+    int 21h
+    ret
+endl endp
+
+
+strncmp proc
+    push bp
+    mov bp, sp
+    
+    mov si, [bp+4]
+    mov di, [bp+6]
+    mov cx, [bp+8]
+    
+compare_loop:
+    cmp cx, 0  
+    je equal_strings  
+    
+    mov al, [si]
+    mov bl, [di]
+    cmp al, bl
+    jne strings_differ  
+    cmp al, 0
+    je equal_strings
+    inc si 
+    inc di 
+    dec cx 
+    jmp compare_loop
+    
+strings_differ:
+    sub al, bl 
+    pop bp
+    ret
+    
+equal_strings:
+    xor ax, ax  
+    pop bp
+    ret
 strncmp endp
 
+main:
+    mov ax, data
+    mov ds, ax  
+    push offset first
+    call input
+    call endl
+    push offset second
+    call input
+    call endl
+    push n                
+    push offset first + 2
+    push offset second + 2
+    call strncmp
+    cmp al, 0
+    je equa_strings
+    jg second_is_greater
+    jl first_is_greater
+    
+equa_strings:
+    push offset equal_s
+    call print
+    jmp exit_program
+
+first_is_greater:
+    push offset bigger_s
+    call print
+    jmp exit_program
+
+second_is_greater:
+    push offset smaller_s
+    call print
+
+exit_program:
+    call endl
+    mov ah, 4ch
+    int 21h  
+ 
 code ends
-end start
+end main
